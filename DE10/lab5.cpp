@@ -9,10 +9,21 @@
 #include <cstdlib> // For std::memcpy
 #include <unordered_map>
 
-void PipeOut(cv:Mat,uint32_t,uint32_t,double);
-//cv::Mat HistogramAndOverlay(cv::Mat,cv::Mat,uint32_t,uint32_t,double);
-void displayImage(cv::Mat);
-cv::Mat OverlayImage(cv::Mat,cv::Mat image, double);
+#include "opencv2/objdetect.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+
+#include <iostream>
+#include <sys/time.h>
+#include "D8MCapture.h"
+#include "hps_0.h"
+
+#define CAPTURE_RAM_DEVICE "/dev/f2h-dma-memory"
+
+//void PipeOut(cv::Mat,uint32_t,uint32_t,double);
+void vidDisplay(cv::Mat);
+cv::Mat OverlayImage(cv::Mat,cv::Mat image, double alpha=.5);
 cv::Mat EqualizeHistogram(cv::Mat image,uint32_t,uint32_t);
 std::vector<char> getCompleteMessage(uint32_t);
 cv::Mat constructGrayscaleImage(std::vector<char>);
@@ -24,14 +35,14 @@ void setContrast(uint32_t);
 void setImageOverlay(cv::Mat);
 bool isMessageComplete(uint32_t);
 void sortMessages(uint32_t);
-void storeBufferAsPacket(const char* , size_t);
+void storeBufferAsPacket(const char* , size_t arraySize=1024);
 //void writeToPipe(const std::string&, const std::vector<char>&);
 
-
-cv::Mat imageBase, imageOverlay,imageHistogram;
+cv::Mat imageBase, imageOverlay,imageHistogram,vidSrc;
 int32_t brightness=0,contrast=99;
 uint32_t command=0;
 double pixel_scale;
+double alpha =.5;
 std::string windowTitle = "Lab5 Output";
 
 struct Packet {
@@ -42,23 +53,146 @@ struct Packet {
 };
 std::unordered_map<uint32_t, std::map<uint32_t, Packet>> messages;
 
-void PipeOut(cv:Mat overlay ,uint32_t bright,uint32_t contr,double alpha)
-{
-	mkfifo /tmp/pipe_overlay
-	mkfifo /tmp/pipe_brightness
-	mkfifo /tmp/pipe_contrast
-	mkfifo /tmp/pipe_alpha
+/**
+ *
+ *	storeBufferAsPacket
+ */
+int main( void ) {
+	cv::D8MCapture capture(TV_DECODER_TERASIC_STREAM_CAPTURE_BASE, CAPTURE_RAM_DEVICE);
+    cv::Mat frame;
+	if ( ! capture.isOpened() ) { printf("--(!)Error opening video capture\n"); return -1; }
+
+
+    // Set up the UDP socket
+    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        std::cerr << "Socket creation failed!" << std::endl;
+        return -1;
+    }
+
+    sockaddr_in server_address{};
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(5005); // Listening port
+    server_address.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(sock, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
+        std::cerr << "Binding failed!" << std::endl;
+		close(sock);
+        return -1;
+    }
+
+    std::cout << "Listening for messages..." << std::endl;
+
+    char buffer[1024]; // Max UDP packet size
+    sockaddr_in client_address;
+    socklen_t client_length = sizeof(client_address);
+
+
+	while (true) {
+		int bytes_received = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&client_address, &client_length);
+
+		if (bytes_received > 0) {
+			uint32_t messageId;
+			//buffer[bytes_received] = '\0'; // Null-terminate the received data if needed
+			std::memcpy(&messageId, &buffer[0], sizeof(uint32_t));		
+			storeBufferAsPacket(buffer);
+			std::cerr << "In Bytes received >0" << std::endl;
+		}
+		if (capture.read(frame))
+		{
+			if( frame.empty() )
+			{
+				printf(" --(!) No captured frame -- Break!");
+				break;
+			}
+			
+			switch (command){
+				case 0x30001:
+					frame = OverlayImage(frame,imageOverlay,0);
+				break;
+				case 0x30002:
+					frame = EqualizeHistogram(frame,brightness,contrast);
+				break;
+				case 0x30003:
+					frame = OverlayImage(frame,imageOverlay);
+				break;
+				case 0x30004:
+					frame = EqualizeHistogram(frame,brightness,contrast);
+				break;
+			}
+		}
+		
+	   
+		
+		//-- Show what you got
+		vidDisplay( frame );
+		
+		
+		//-- bail out if escape was pressed
+		int c = cv::waitKey(10);
+		if ((char) c == 27) {
+			std::cerr << "In the c==27 break" << std::endl;
+			break;
+		}
+	}
 	
-
+    close(sock);
+    return 0;
 }
 
-cv::Mat HistogramAndOverlay(cv:mat image_base,cv:mat image_overlay,int32_t bright,int32_t contr,double alpha=.5){
-    return OverlayImage((EqualizeHistogram(image_base,bright,contr),image_overlay,alpha);
+
+void vidDisplay(cv::Mat frame)
+{
+	 char str[100];
+	static struct timeval last_time;
+	struct timeval current_time;
+	static float last_fps;
+	float t;
+	float fps;	
+		
+	gettimeofday(&current_time, NULL);
+	t = (current_time.tv_sec - last_time.tv_sec) + (current_time.tv_usec - last_time.tv_usec) / 1000000.;
+	fps = 1. / t;
+	fps = last_fps * 0.8 + fps * 0.2;
+	last_fps = fps;
+	last_time = current_time;
+	sprintf(str, "%2.2f", fps);
+	//cout << str << endl;
+	cv::putText(frame, str, cv::Point(20, 40), cv::FONT_HERSHEY_DUPLEX, 1, cv::Scalar(0, 0, 255));
+		
+    //-- Show what you got
+    imshow( windowTitle, frame );
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void displayImage(cv::Mat image){
 	int timeMult;
-	if (cv::getWindowProperty(windowTitle, cv::WND_PROP_VISIBLE) == -1){
+	if (cv::getWindowProperty(windowTitle, cv::WND_PROP_AUTOSIZE) == -1){
 		timeMult = 20;
 	}
 	else {timeMult = 1;}
@@ -71,16 +205,16 @@ void displayImage(cv::Mat image){
  *	accepts cv::Mat image_base, cv::Matimage_overlay, and double alpha
  *	performs overlay, resulting image is returned 
  */	
-cv::Mat image OverlayImage(cv::Mat image_base,cv::Mat image_overlay, double alpha = 0.5)
+cv::Mat OverlayImage(cv::Mat image_base,cv::Mat image_overlay, double alpha)
 {
    if (image_base.empty() || imageOverlay.empty()) {
 		cv::destroyWindow(windowTitle);
         std::cerr << "Error: Could not load one of the images!" << std::endl;
-        return;
+        return cv::Mat();
     }
-	
+	cv::Mat output;
 	// do not modify output and overlay
-	cv::Mat output = image_base.clone();
+	output = image_base.clone();
 	cv::Mat overlay = imageOverlay.clone();
 
     // crop overlay if larger than base
@@ -94,7 +228,7 @@ cv::Mat image OverlayImage(cv::Mat image_base,cv::Mat image_overlay, double alph
 	// Apply the overlay to the ROI
 	cv::addWeighted(croppedOverlay, alpha, roi, 1.0 - alpha, 0.0, roi);
 
-	return(output);
+	return output;
 }
 /**
  *	------------------------------------
@@ -105,12 +239,12 @@ cv::Mat image OverlayImage(cv::Mat image_base,cv::Mat image_overlay, double alph
  *	resulting image is returned
  *	------------------------------------
  */
-cv::Mat image EqualizeHistogram(cv::Mat image, uint32_t bright, uint32_t contr)
+cv::Mat EqualizeHistogram(cv::Mat image, uint32_t bright, uint32_t contr)
 {
     if (image.empty()) {
 		cv::destroyWindow(windowTitle);
         std::cerr << "Error: Could not load image!" << std::endl;
-        return;
+        return cv::Mat();
     }
 	std::cout << "imageHistogram.channels() = " << imageHistogram.channels() << std::endl; 
 	cv::Mat output;
@@ -160,7 +294,7 @@ cv::Mat image EqualizeHistogram(cv::Mat image, uint32_t bright, uint32_t contr)
 	}
 
     // return file
-	return(output);
+	return output;
 }
 
 
@@ -239,15 +373,19 @@ void updateOutput()
 		std::cout << "In command case 0x2001: Histogram Equalization" << std::endl;
 		displayImage(EqualizeHistogram(imageHistogram,brightness,contrast));
 		break;
+		/*
 		case 0x30001:
 		std::cout << "In command case 0x2001: Video Histogram Equalization" << std::endl;
-		displayImage(EqualizeHistogram(imageHistogram,brightness,contrast));
+		//displayImage(EqualizeHistogram(imageHistogram,brightness,contrast,0));
+		//Alpha = 0;
 		break;
 		case 0x30002:
 		std::cout << "In command case 0x2001: Video Histogram Equalization with Overlay" << std::endl;
-		displayImage(EqualizeHistogram(imageHistogram,brightness,contrast));
+		//displayImage(EqualizeHistogram(imageHistogram,brightness,contrast));
 		break;
-		
+*/		
+		default:
+		break;
 	}
 }
 void setMode(uint32_t data){
@@ -325,26 +463,26 @@ void sortMessages(uint32_t messageID){
 			setImageBase(constructGrayscaleImage(getCompleteMessage(messageID)));
 			break;
 			case 0x12:
-			std::vector<char> data = getCompleteMessage(messageID)
-			setImageOverlay(constructGrayscaleImage(data));
+			//std::vector<char> data = getCompleteMessage(messageID);
+			setImageOverlay(constructGrayscaleImage(getCompleteMessage(messageID)));
 			//writeToPipe("Overlay",data);
 			break;
 			case 0x13:
 			setImageHistogram(constructGrayscaleImage(getCompleteMessage(messageID)));
 			break;
 			case 0x20:
-			std::vector<char> data = getCompleteMessage(messageID)
-			setMode(constructInt32_t(data));
+			//std::vector<char> data = getCompleteMessage(messageID)
+			setMode(constructInt32_t(getCompleteMessage(messageID)));
 			//writeToPipe("Mode",data);
 			break;
 			case 0x2B:
-			std::vector<char> data = getCompleteMessage(messageID)
-			setBrightness(constructInt32_t(data));
+			//std::vector<char> data = getCompleteMessage(messageID)
+			setBrightness(constructInt32_t(getCompleteMessage(messageID)));
 			//writeToPipe("Brightness",data);
 			break;
 			case 0x2C:
-			std::vector<char> data = getCompleteMessage(messageID)
-			setContrast(constructInt32_t(data));
+			//std::vector<char> data = getCompleteMessage(messageID)
+			setContrast(constructInt32_t(getCompleteMessage(messageID)));
 			//writeToPipe("Contrast",data);
 			break;
 			default:
@@ -358,7 +496,7 @@ void sortMessages(uint32_t messageID){
  *
  *	
  */
-void storeBufferAsPacket(const char* charArray, size_t arraySize = 1024) {
+void storeBufferAsPacket(const char* charArray, size_t arraySize) {
 	
     // Ensure the array has enough bytes for metadata (16 bytes: messageID, sequenceNumber, totalChunks, dataSize)
     if (arraySize < sizeof(uint32_t) * 4) {
@@ -387,69 +525,4 @@ void storeBufferAsPacket(const char* charArray, size_t arraySize = 1024) {
 	sortMessages(messageID);
 }
 
-/**
- *
- *	storeBufferAsPacket
- */
-int main() {
-    // Set up the UDP socket
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        std::cerr << "Socket creation failed!" << std::endl;
-        return -1;
-    }
 
-    sockaddr_in server_address{};
-    server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(5005); // Listening port
-    server_address.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(sock, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
-        std::cerr << "Binding failed!" << std::endl;
-		close(sock);
-        return -1;
-    }
-
-    std::cout << "Listening for messages..." << std::endl;
-
-    char buffer[1024]; // Max UDP packet size
-    sockaddr_in client_address;
-    socklen_t client_length = sizeof(client_address);
-
-	VideoCapture capture;
-    Mat frame;
-	
-	capture.open( -1 );
-    if ( ! capture.isOpened() ) { printf("--(!)Error opening video capture\n"); return -1; }
-	else
-	{
-		while (true) {
-			int bytes_received = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&client_address, &client_length);
-
-			if (bytes_received > 0) {
-				uint32_t messageId;
-				//buffer[bytes_received] = '\0'; // Null-terminate the received data if needed
-				std::memcpy(&messageId, &buffer[0], sizeof(uint32_t));		
-				storeBufferAsPacket(buffer);
-			}
-			if ( capture.read(frame) )
-			{
-				
-				if( frame.empty() )
-				{
-					printf(" --(!) No captured frame -- Break!");
-					break;
-				}
-
-				//-- 3. Apply the classifier to the frame
-				detectAndDisplay( frame );
-
-				//-- bail out if escape was pressed
-				int c = waitKey(10);
-				if( (char)c == 27 ) { break; }
-			}
-		}
-	}
-    close(sock);
-    return 0;
-}
