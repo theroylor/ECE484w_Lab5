@@ -1,5 +1,7 @@
 #include <unistd.h>	
 #include <iostream>
+#include <fcntl.h>
+//#include <netinet/in.h>
 #include <vector>
 #include <cstring>
 #include <sys/socket.h>
@@ -24,25 +26,26 @@
 //void PipeOut(cv::Mat,uint32_t,uint32_t,double);
 void vidDisplay(cv::Mat);
 cv::Mat OverlayImage(cv::Mat,cv::Mat image, double alpha=.5);
-cv::Mat EqualizeHistogram(cv::Mat image,uint32_t,uint32_t);
+cv::Mat EqualizeHistogram(cv::Mat image,int32_t,int32_t);
 std::vector<char> getCompleteMessage(uint32_t);
 cv::Mat constructGrayscaleImage(std::vector<char>);
 int32_t constructInt32_t(std::vector<char>);
 void updateOutput();
 void setMode(uint32_t);
-void setBrightness(uint32_t);
-void setContrast(uint32_t);
+void setBrightness(int32_t);
+void setContrast(int32_t);
 void setImageOverlay(cv::Mat);
 bool isMessageComplete(uint32_t);
 void sortMessages(uint32_t);
 void storeBufferAsPacket(const char* , size_t arraySize=1024);
-//void writeToPipe(const std::string&, const std::vector<char>&);
+void NoOverlay(cv::Mat);
 
-cv::Mat imageBase, imageOverlay,imageHistogram,vidSrc;
+cv::Mat imageBase,imageOverlay,imageHistogram,vidSrc;
 int32_t brightness=0,contrast=99;
-uint32_t command=0;
+uint32_t command = 0;
 double pixel_scale;
 double alpha =.5;
+int UDP_PORT= 5005;
 std::string windowTitle = "Lab5 Output";
 
 struct Packet {
@@ -65,17 +68,22 @@ int main( void ) {
 
     // Set up the UDP socket
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) {
+	int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+
+    if (sock < 0) 
+	{
         std::cerr << "Socket creation failed!" << std::endl;
         return -1;
     }
 
     sockaddr_in server_address{};
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(5005); // Listening port
+    server_address.sin_port = htons(UDP_PORT); // Listening port
     server_address.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(sock, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) {
+    if (bind(sock, (struct sockaddr*)&server_address, sizeof(server_address)) < 0) 
+	{
         std::cerr << "Binding failed!" << std::endl;
 		close(sock);
         return -1;
@@ -88,9 +96,11 @@ int main( void ) {
     socklen_t client_length = sizeof(client_address);
 
 
-	while (true) {
+	while (capture.read(frame)) 
+	{
 		int bytes_received = recvfrom(sock, buffer, sizeof(buffer), 0, (struct sockaddr*)&client_address, &client_length);
-
+		
+		
 		if (bytes_received > 0) {
 			uint32_t messageId;
 			//buffer[bytes_received] = '\0'; // Null-terminate the received data if needed
@@ -98,34 +108,49 @@ int main( void ) {
 			storeBufferAsPacket(buffer);
 			std::cerr << "In Bytes received >0" << std::endl;
 		}
-		if (capture.read(frame))
+		if( frame.empty() )
 		{
-			if( frame.empty() )
-			{
-				printf(" --(!) No captured frame -- Break!");
-				break;
-			}
-			
-			switch (command){
-				case 0x30001:
-					frame = OverlayImage(frame,imageOverlay,0);
-				break;
-				case 0x30002:
-					frame = EqualizeHistogram(frame,brightness,contrast);
-				break;
-				case 0x30003:
-					frame = OverlayImage(frame,imageOverlay);
-				break;
-				case 0x30004:
-					frame = EqualizeHistogram(frame,brightness,contrast);
-				break;
-			}
+			printf(" --(!) No captured frame -- Break!");
+			break;
 		}
 		
-	   
+		cv::Mat output;
+		if (frame.channels() == 3 || frame.channels()== 4)
+		{
+			cv::cvtColor(frame, output, cv::COLOR_BGR2GRAY);
+		}
+		else
+		{
+			output = frame;
+		}
 		
+		switch (command)
+		{
+			case 0x30001:
+				// output = output
+			break;
+			case 0x30002:
+				if (imageOverlay.empty()){NoOverlay(output);}
+				else
+				output = OverlayImage(output,imageOverlay);
+			break;
+			case 0x30003:
+				output = EqualizeHistogram(output,brightness,contrast);
+			break;
+			case 0x30004:
+				output = EqualizeHistogram(output,brightness,contrast);
+				if (imageOverlay.empty()){NoOverlay(output);}
+				else
+				output = OverlayImage(output,imageOverlay);
+			break;
+			default:
+				output = frame;
+			
+			
+		}
+
 		//-- Show what you got
-		vidDisplay( frame );
+		vidDisplay( output );
 		
 		
 		//-- bail out if escape was pressed
@@ -140,10 +165,25 @@ int main( void ) {
     return 0;
 }
 
+void NoOverlay(cv::Mat frame)
+{
+	std::string str = "ERROR: No Overlay Sent";
+	//cout << str << endl;
+	
+	int font = cv::FONT_HERSHEY_DUPLEX;
+	int weight = 2;
+	double scale = 1;
+	cv::Scalar red(0,0,255);
+	
+	
+	cv::Size textSize = cv::getTextSize(str, font,scale,weight,0);
+	cv::Point origin((frame.cols - textSize.width)/2,(frame.rows + textSize.height)/2);
+	cv::putText(frame, str,origin,font, scale, red, weight);
+}
 
 void vidDisplay(cv::Mat frame)
 {
-	 char str[100];
+	char str[100];
 	static struct timeval last_time;
 	struct timeval current_time;
 	static float last_fps;
@@ -163,30 +203,6 @@ void vidDisplay(cv::Mat frame)
     //-- Show what you got
     imshow( windowTitle, frame );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -239,22 +255,20 @@ cv::Mat OverlayImage(cv::Mat image_base,cv::Mat image_overlay, double alpha)
  *	resulting image is returned
  *	------------------------------------
  */
-cv::Mat EqualizeHistogram(cv::Mat image, uint32_t bright, uint32_t contr)
+cv::Mat EqualizeHistogram(cv::Mat image, int32_t bright, int32_t contr)
 {
     if (image.empty()) {
 		cv::destroyWindow(windowTitle);
         std::cerr << "Error: Could not load image!" << std::endl;
         return cv::Mat();
     }
-	std::cout << "imageHistogram.channels() = " << imageHistogram.channels() << std::endl; 
 	cv::Mat output;
-	std::cout << "cv::Mat output" << std::endl;
 	/* this should never be invoked
-	if(imageHistogram.channels() == 3){
-		cv::cvtColor(imageHistogram, output, cv::COLOR_GRAY2BGR);
+	if(image.channels() == 3){
+		cv::cvtColor(image, output, cv::COLOR_GRAY2BGR);
 	}
 	else{
-		output = imageHistogram.clone();
+		output = image.clone();
 	} */
 	output = image.clone();
 	
@@ -389,20 +403,20 @@ void updateOutput()
 	}
 }
 void setMode(uint32_t data){
-	if(!isSameCommandMSB(data,command)){
-		cv::destroyWindow(windowTitle);
-		cv::waitKey(100);
-	}
+//	if(!isSameCommandMSB(data,command)){
+//		cv::destroyWindow(windowTitle);
+//		cv::waitKey(100);
+//	}
 	command = data;
 	std::cout << "Set mode = 0x" << std::hex << data << std::dec << std::endl;
 	updateOutput();
 }
-void setBrightness(uint32_t data){
+void setBrightness(int32_t data){
 	brightness = data;
 	std::cout << "Set brightness = " << (int)data << std::endl;
 	updateOutput();
 }
-void setContrast(uint32_t data){
+void setContrast(int32_t data){
 	contrast = data;
 	std::cout << "Set contrast = " << (int)data << std::endl;
 	updateOutput();

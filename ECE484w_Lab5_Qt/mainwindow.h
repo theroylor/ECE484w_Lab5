@@ -49,6 +49,12 @@ private slots:
 
     void on_checkBox_overlay_toggle_stateChanged(int arg1);
 
+    void on_checkBox_histogram_toggle_stateChanged(int arg1);
+
+    void statusUpdate();
+
+    void on_checkBox_enable_toggle_stateChanged(int arg1);
+
 private:
     QUdpSocket *udpSocket;
     QString udpServerIP;
@@ -65,7 +71,9 @@ private:
     void sendUdpImage(quint32 messageId, const QImage &image);
     void sendUdpInteger(quint32 messageId, quint32 integerValue);
     void sendUdpData(quint32 messageId, const QByteArray &data);
-    quint32 status=0x10001;
+    const quint32 Default_status = 0x30001;
+    quint32 status=Default_status;
     int packetSize = 1024, headerSize=16;
+    int Histogram_status=0, Overlay_status=0,Active_status=0;
 };
 #endif // MAINWINDOW_H

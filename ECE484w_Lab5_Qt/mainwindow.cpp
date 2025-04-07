@@ -219,25 +219,47 @@ void MainWindow::sendUdpData(quint32 messageId, const QByteArray &data) {
 
         qDebug() << chunkPacket.size() << "bytes in packet. Chunk" << i + 1 << "of" << totalChunks << "sent for Message ID:" << messageId;
         qDebug() << "First byte of data in chunk: " << data.mid(i * chunkSize, 1).toHex();
-        QThread::msleep(10);
+        QThread::msleep(20);
 
     }
 }
 
 void MainWindow::on_checkBox_overlay_toggle_stateChanged(int arg1)
 {
-    if (arg1){status = 0x10002;}
-    else {status = 0x10001;}
-    sendUdpInteger(0x20,status);
+    if (arg1){Overlay_status = 1;}
+    else {Overlay_status = 0;}
+    statusUpdate();
+}
+
+void MainWindow::statusUpdate()
+{
+    status = Default_status + Histogram_status*2+Overlay_status;
+    sendUdpInteger(0x20,status*Active_status);
 }
 
 void MainWindow::on_pushButton_Send_Base_clicked()
 {
     if(base_image.isNull())
     {return;}   // do not run unless image has been set
-    sendUdpImage(0x13,base_image);
+    sendUdpImage(0x12,base_image);
     sendUdpInteger(0x20,status);
     sendUdpInteger(0x2B,brightness);
     sendUdpInteger(0x2C,contrast);
+}
+
+
+void MainWindow::on_checkBox_histogram_toggle_stateChanged(int arg1)
+{
+    if (arg1){Histogram_status = 1;}
+    else {Histogram_status = 0;}
+    statusUpdate();
+}
+
+
+void MainWindow::on_checkBox_enable_toggle_stateChanged(int arg1)
+{
+    if (arg1){Active_status = 1;}
+    else {Active_status = 0;}
+    statusUpdate();
 }
 

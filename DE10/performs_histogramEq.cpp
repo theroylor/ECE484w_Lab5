@@ -54,28 +54,28 @@ int main( void ) {
 
 
 	while (capture.read(frame))
+	{
+		if( frame.empty() )
 		{
-			if( frame.empty() )
-			{
-				printf(" --(!) No captured frame -- Break!");
-				break;
-			}
-			cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
-			
-			cv::Mat = output EqualizeHistogram(frame,0,10);
-
-			//-- Show what you got frame.
-			vidDisplay( output );
-		
-		
-			//-- bail out if escape was pressed
-			int c = cv::waitKey(10);
-			if ((char) c == 27) 
-			{
-				std::cerr << "In the c==27 break" << std::endl;
-				break;
-			}
+			printf(" --(!) No captured frame -- Break!");
+			break;
 		}
+		cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
+		
+		cv::Mat output = EqualizeHistogram(frame,0,10);
+
+		//-- Show what you got frame.
+		vidDisplay( output );
+	
+	
+		//-- bail out if escape was pressed
+		int c = cv::waitKey(10);
+		if ((char) c == 27) 
+		{
+			std::cerr << "In the c==27 break" << std::endl;
+			break;
+		}
+	}
 	
 	return 0;
 }
