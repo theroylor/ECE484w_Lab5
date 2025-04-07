@@ -10,11 +10,29 @@
 #include <unordered_map>
 
 
+cv::Mat HistogramAndOverlay(cv::Mat,cv::Mat,uint32_t,uint32_t,double);
+void displayImage(cv::Mat);
+cv::Mat OverlayImage(cv::Mat,cv::Mat image, double);
+cv::Mat EqualizeHistogram(cv::Mat image,uint32_t,uint32_t);
+std::vector<char> getCompleteMessage(uint32_t);
+cv::Mat constructGrayscaleImage(std::vector<char>);
+int32_t constructInt32_t(std::vector<char>);
+void updateOutput();
+void setMode(uint32_t);
+void setBrightness(uint32_t);
+void setContrast(uint32_t);
+void setImageOverlay(cv::Mat);
+bool isMessageComplete(uint32_t);
+void sortMessages(uint32_t);
+void storeBufferAsPacket(const char* , size_t);
+
+
+
 cv::Mat imageBase, imageOverlay,imageHistogram;
 int32_t brightness=0,contrast=99;
 uint32_t command=0;
 double pixel_scale;
-std::string windowTitle = "Lab4 Output";
+std::string windowTitle = "Lab5 Output";
 
 struct Packet {
     uint32_t sequenceNumber;
@@ -23,6 +41,12 @@ struct Packet {
     std::vector<char> data; // Data payload
 };
 std::unordered_map<uint32_t, std::map<uint32_t, Packet>> messages;
+
+
+cv::Mat HistogramAndOverlay(cv:mat image_base,cv:mat image_overlay,uint32 bright,uint32 contr,double alpha=.5){
+    OverlayImage((EqualizeHistogram(image_base,bright,contr),image_overlay,alpha);
+}
+
 
 void displayImage(cv::Mat image){
 	int timeMult;
@@ -36,19 +60,19 @@ void displayImage(cv::Mat image){
 
 /**
  *	------------------------------------
- *	uses imageBase, imageOverlay
- *	overlays 
+ *	accepts cv::Mat image_base, cv::Matimage_overlay, and double alpha
+ *	performs overlay, resulting image is returned 
  */	
-void OverlayImage(double alpha = 0.5)
+cv::Mat image OverlayImage(cv::Mat image_base,cv::Mat image_overlay, double alpha = 0.5)
 {
-   if (imageBase.empty() || imageOverlay.empty()) {
+   if (image_base.empty() || imageOverlay.empty()) {
 		cv::destroyWindow(windowTitle);
         std::cerr << "Error: Could not load one of the images!" << std::endl;
         return;
     }
 	
 	// do not modify output and overlay
-	cv::Mat output = imageBase.clone();
+	cv::Mat output = image_base.clone();
 	cv::Mat overlay = imageOverlay.clone();
 
     // crop overlay if larger than base
@@ -67,16 +91,16 @@ void OverlayImage(double alpha = 0.5)
 }
 /**
  *	------------------------------------
- *	Uses imageBase, brightness, contrast
+ *	Accepts cv::Matimage, uint32_t brightness, and uint32_t contrast to
  *	performs histogram equalization
  *	contrast is the equalization range
  *	brightness is added to pixel values
- *	image is displayed on DE10
+ *	resulting image is returned
  *	------------------------------------
  */
-void EqualizeHistogram()
+cv::Mat image EqualizeHistogram(cv::Mat image, uint32_t bright, uint32_t contr)
 {
-    if (imageHistogram.empty()) {
+    if (image.empty()) {
 		cv::destroyWindow(windowTitle);
         std::cerr << "Error: Could not load image!" << std::endl;
         return;
@@ -91,7 +115,7 @@ void EqualizeHistogram()
 	else{
 		output = imageHistogram.clone();
 	} */
-	output = imageHistogram.clone();
+	output = image.clone();
 	
 	int rows = output.rows;
 	int cols = output.cols;
@@ -115,7 +139,7 @@ void EqualizeHistogram()
     {
         // resolve histogram equalization
         sum += histogram[i];
-		histogram[i]=brightness + sum * contrast * pixel_scale;
+		histogram[i]=bright + sum * contr * pixel_scale;
     }
 
 	for (int x = 0; x < cols; x++) {
@@ -129,7 +153,7 @@ void EqualizeHistogram()
 	}
 
     // display file
-	displayImage(output);
+	//displayImage(output);
 }
 
 
@@ -198,16 +222,25 @@ void updateOutput()
 	switch(command){
 		case 0x10001:
 		std::cout << "In command case 0x1001: No Overlay" << std::endl;
-		OverlayImage(0);
+		displayImage(OverlayImage(imageBase,imageOverlay,0));
 		break;
 		case 0x10002:
 		std::cout << "In command case 0x1002: Overlay" << std::endl;
-		OverlayImage();
+		displayImage(OverlayImage(imageBase,imageOverlay,0));
 		break;
 		case 0x20001:
 		std::cout << "In command case 0x2001: Histogram Equalization" << std::endl;
-		EqualizeHistogram();
+		displayImage(EqualizeHistogram(imageHistogram,brightness,contrast));
 		break;
+		case 0x30001:
+		std::cout << "In command case 0x2001: Video Histogram Equalization" << std::endl;
+		displayImage(EqualizeHistogram(imageHistogram,brightness,contrast));
+		break;
+		case 0x30002:
+		std::cout << "In command case 0x2001: Video Histogram Equalization with Overlay" << std::endl;
+		displayImage(EqualizeHistogram(imageHistogram,brightness,contrast));
+		break;
+		
 	}
 }
 void setMode(uint32_t data){
