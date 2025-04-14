@@ -170,7 +170,7 @@ void MainWindow::sendUdpImage(quint32 messageId, const QImage &image) {
     QByteArray data;
     QBuffer buffer(&data);
     buffer.open(QIODevice::WriteOnly);
-    image.save(&buffer, "BMP"); // Save the image in BMP format
+    image.save(&buffer, "PNG"); // Save the image in BMP format
 
     // Use sendUdpData to send the serialized image
     sendUdpData(messageId, data);
@@ -233,8 +233,8 @@ void MainWindow::on_checkBox_overlay_toggle_stateChanged(int arg1)
 
 void MainWindow::statusUpdate()
 {
-    status = Default_status + Histogram_status*2+Overlay_status;
-    sendUdpInteger(0x20,status*Active_status);
+    status = (Default_status + Histogram_status*2+Overlay_status)*Active_status;
+    sendUdpInteger(0x20,status);
 }
 
 void MainWindow::on_pushButton_Send_Base_clicked()
@@ -242,7 +242,7 @@ void MainWindow::on_pushButton_Send_Base_clicked()
     if(base_image.isNull())
     {return;}   // do not run unless image has been set
     sendUdpImage(0x12,base_image);
-    sendUdpInteger(0x20,status);
+    statusUpdate();
     sendUdpInteger(0x2B,brightness);
     sendUdpInteger(0x2C,contrast);
 }
