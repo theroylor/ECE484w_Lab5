@@ -1,28 +1,22 @@
-# Executable targets
-TARGETS = lab5 UDP_reciever Video_processor
+TARGET = lab5
 
-# Compiler and flags
-CC = g++
-CFLAGS = -Ofast -Wall -std=c++11 `pkg-config --cflags opencv`
-LDFLAGS = -Ofast -Wall -std=c++11 `pkg-config --libs opencv` -lpthread
+ALT_DEVICE_FAMILY ?= soc_cv_av
 
-# Default rule
-all: $(TARGETS)
+HWLIBS_ROOT = ../../hwlib
 
-# Rules for each target
-lab5: lab5.o
-	$(CC) $(LDFLAGS) -o $@ $^ `pkg-config --libs opencv`
+CFLAGS = -ggdb -Wall -std=c++11 `pkg-config --cflags opencv` -I$(HWLIBS_ROOT)/include -I$(HWLIBS_ROOT)/include/$(ALT_DEVICE_FAMILY) -D$(ALT_DEVICE_FAMILY)
+LDFLAGS = -ggdb -Wall -std=c++11 `pkg-config --libs opencv` -lpthread
+//CROSS_COMPILE = arm-linux-gnueabihf-
+CC = $(CROSS_COMPILE)g++
 
-UDP_reciever: UDP_reciever.o
-	$(CC) $(LDFLAGS) -o $@ $^ `pkg-config --libs opencv`
-	
-Video_processor: Video_processor.o	
-	$(CC) $(LDFLAGS) -o $@ $^ `pkg-config --libs opencv`
+all: $(TARGET)
 
-# Pattern rule for object files
+$(TARGET): $(TARGET).o D8MCapture.o
+	$(CC) -o $@ $^ $(LDFLAGS)
+
 %.o: %.cpp
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Clean rule
 clean:
-	rm -f $(TARGETS) *.o *~
+	rm -f $(TARGET) *.a *.o *~
+

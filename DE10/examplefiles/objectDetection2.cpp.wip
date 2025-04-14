@@ -1,0 +1,264 @@
+/**
+ * @file objectDetection2.cpp
+ * @author A. Huaman ( based in the classic facedetect.cpp in samples/c )
+ * @brief A simplified version of facedetect.cpp, show how to load a cascade classifier and how to find objects (Face + eyes) in a video stream - Using LBP here
+ */
+#include "opencv2/objdetect.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/highgui.hpp"
+#include "opencv2/imgproc.hpp"
+
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <sys/time.h>
+
+using namespace std;
+using namespace cv;
+
+/** Function Headers */
+void detectAndDisplay( Mat frame );
+cv::Mat HistogramAndOverlay(cv::Mat,cv::Mat,uint32_t,uint32_t,double);
+void displayImage(cv::Mat);
+cv::Mat OverlayImage(cv::Mat,cv::Mat image, double);
+cv::Mat EqualizeHistogram(cv::Mat image,uint32_t,uint32_t);
+
+int32_t getBrightness();
+int32_t getContrast();
+cv::Mat getOverlay();
+double getAlpha();
+
+
+/** Global variables */
+String face_cascade_name = "lbpcascade_frontalface.xml";
+String eyes_cascade_name = "haarcascade_eye_tree_eyeglasses.xml";
+CascadeClassifier face_cascade;
+CascadeClassifier eyes_cascade;
+String window_name = "Capture - Face detection";
+/**
+ * @function main
+ */
+int main( void )
+{
+	
+    VideoCapture capture;
+    Mat frame;
+
+    //-- 1. Load the cascade
+    //if( !face_cascade.load( face_cascade_name ) ){ printf("--(!)Error loading face cascade\n"); return -1; };
+    //if( !eyes_cascade.load( eyes_cascade_name ) ){ printf("--(!)Error loading eyes cascade\n"); return -1; };
+
+    //-- 2. Read the video stream
+    capture.open( -1 );
+    if ( ! capture.isOpened() ) { printf("--(!)Error opening video capture\n"); return -1; }
+
+    while ( capture.read(frame) )
+    {
+		
+        if( frame.empty() )
+        {
+            printf(" --(!) No captured frame -- Break!");
+            break;
+        }
+
+        //-- 3. Apply the classifier to the frame
+        detectAndDisplay( frame );
+
+        //-- bail out if escape was pressed
+        int c = waitKey(10);
+        if( (char)c == 27 ) { break; }
+    }
+    return 0;
+}
+
+
+cv::Mat HistogramAndOverlay(cv:mat image_base,cv:mat image_overlay,int32_t bright,int32_t contr,double alpha=.5){
+    return OverlayImage((EqualizeHistogram(image_base,bright,contr),image_overlay,alpha);
+}
+
+int32_t getBrightness(){
+	
+}
+int32_t getContrast(){
+	
+}
+cv::Mat getOverlay(){
+	
+}
+double getAlpha(){
+	
+}
+
+/**
+ * @function detectAndDisplay
+ */
+void detectAndDisplay( Mat frame )
+{
+    std::vector<Rect> faces;
+    Mat frame_gray;
+
+    cvtColor( frame, frame_gray, COLOR_BGR2GRAY );
+//    equalizeHist( frame_gray, frame_gray );
+//
+//    //-- Detect faces
+//    face_cascade.detectMultiScale( frame_gray, faces, 1.1, 2, 0, Size(80, 80) );
+//
+//    for( size_t i = 0; i < faces.size(); i++ )
+//    {
+//        Mat faceROI = frame_gray( faces[i] );
+//        std::vector<Rect> eyes;
+//
+//        //-- In each face, detect eyes
+//        eyes_cascade.detectMultiScale( faceROI, eyes, 1.1, 2, 0 |CASCADE_SCALE_IMAGE, Size(30, 30) );
+//        if( eyes.size() == 2)
+//        {
+//            //-- Draw the face
+//            Point center( faces[i].x + faces[i].width/2, faces[i].y + faces[i].height/2 );
+//            ellipse( frame, center, Size( faces[i].width/2, faces[i].height/2 ), 0, 0, 360, Scalar( 255, 0, 0 ), 2, 8, 0 );
+//
+//            for( size_t j = 0; j < eyes.size(); j++ )
+//            { //-- Draw the eyes
+//                Point eye_center( faces[i].x + eyes[j].x + eyes[j].width/2, faces[i].y + eyes[j].y + eyes[j].height/2 );
+//                int radius = cvRound( (eyes[j].width + eyes[j].height)*0.25 );
+//                circle( frame, eye_center, radius, Scalar( 255, 0, 255 ), 3, 8, 0 );
+//            }
+//        }
+//
+//    }
+	
+	HistogramAndOverlay(
+
+    char str[100];
+    static struct timeval last_time;
+    struct timeval current_time;
+    static float last_fps;
+    float t;
+    float fps;
+
+    gettimeofday(&current_time, NULL);
+    t = (current_time.tv_sec - last_time.tv_sec) + (current_time.tv_usec - last_time.tv_usec) / 1000000.;
+    fps = 1. / t;
+    fps = last_fps * 0.8 + fps * 0.2;
+    last_fps = fps;
+    last_time = current_time;
+    sprintf(str, "%2.2f", fps);
+    //cout << str << endl;
+    putText(frame, str, Point(20, 40), FONT_HERSHEY_DUPLEX, 1, Scalar(0, 0, 255));
+
+    //-- Show what you got
+    imshow( window_name, frame );
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/**
+ *	------------------------------------
+ *	accepts cv::Mat image_base, cv::Matimage_overlay, and double alpha
+ *	performs overlay, resulting image is returned 
+ */	
+cv::Mat image OverlayImage(cv::Mat image_base,cv::Mat image_overlay, double alpha = 0.5)
+{
+   if (image_base.empty() || imageOverlay.empty()) {
+		cv::destroyWindow(windowTitle);
+        std::cerr << "Error: Could not load one of the images!" << std::endl;
+        return;
+    }
+	
+	// do not modify output and overlay
+	cv::Mat output = image_base.clone();
+	cv::Mat overlay = imageOverlay.clone();
+
+    // crop overlay if larger than base
+    int rows = std::min(output.rows, overlay.rows);
+    int cols = std::min(output.cols, overlay.cols);
+    cv::Mat croppedOverlay = overlay(cv::Rect(0, 0, cols, rows));
+
+    // Define ROI on the base image
+    cv::Mat roi = output(cv::Rect(0, 0, cols, rows));
+    
+	// Apply the overlay to the ROI
+	cv::addWeighted(croppedOverlay, alpha, roi, 1.0 - alpha, 0.0, roi);
+
+	return(output);
+}
+/**
+ *	------------------------------------
+ *	Accepts cv::Matimage, uint32_t brightness, and uint32_t contrast to
+ *	performs histogram equalization
+ *	contrast is the equalization range
+ *	brightness is added to pixel values
+ *	resulting image is returned
+ *	------------------------------------
+ */
+cv::Mat image EqualizeHistogram(cv::Mat image, uint32_t bright, uint32_t contr)
+{
+    if (image.empty()) {
+		cv::destroyWindow(windowTitle);
+        std::cerr << "Error: Could not load image!" << std::endl;
+        return;
+    }
+	std::cout << "imageHistogram.channels() = " << imageHistogram.channels() << std::endl; 
+	cv::Mat output;
+	std::cout << "cv::Mat output" << std::endl;
+	/* this should never be invoked
+	if(imageHistogram.channels() == 3){
+		cv::cvtColor(imageHistogram, output, cv::COLOR_GRAY2BGR);
+	}
+	else{
+		output = imageHistogram.clone();
+	} */
+	output = image.clone();
+	
+	int rows = output.rows;
+	int cols = output.cols;
+
+    //innitialize histogram for new image
+	std::vector<int> histogram(256, 0);
+    pixel_scale = 1.0 /(rows * cols);
+
+    for(int x = 0; x < cols; x++)
+    {
+        for(int y = 0; y < rows; y++)
+        {
+            // vector stores count of pixel with index value
+            int pixelValue = output.at<uchar>(y, x);
+            histogram[pixelValue]++;
+        }
+    }
+
+    int sum = 0;
+    for(int i = 0; i < 256; i++)
+    {
+        // resolve histogram equalization
+        sum += histogram[i];
+		histogram[i]=bright + sum * contr * pixel_scale;
+    }
+
+	for (int x = 0; x < cols; x++) {
+		for (int y = 0; y < rows; y++) {
+            // pixel value at a coordinate is an index
+            // value at index is the replacement value for that pixel
+			int pixelValue = output.at<uchar>(y, x);
+			pixelValue = histogram[pixelValue];
+			output.at<uchar>(y, x) = std::min(255, std::max(0, pixelValue));
+		}
+	}
+
+    // return file
+	return(output);
+}
+
